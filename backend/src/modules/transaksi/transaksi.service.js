@@ -155,4 +155,4 @@ const remove = async (id) => {
   return true;
 };
 
-module.exports = { getAll, getById, create, updateStatus, remove };
+module.exports = { getAll, getById, create, updateStatus, remove, generateKodeTransaksi };

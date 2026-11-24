@@ -163,4 +163,4 @@ const getRiwayat = async (query) => {
   };
 };
 
-module.exports = { getAll, getById, create, update, remove, restock, getRiwayat };
+module.exports = { getAll, getById, create, update, remove, restock, getRiwayat, hitungStatusStok };
