@@ -6,6 +6,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContai
 import axiosInstance from '../api/axiosInstance';
 import { exportToPDF, exportToExcel } from '../utils/exportUtils';
 import { formatRupiah } from '../utils/formatRupiah';
+import { toTanggalLokal } from '../utils/formatTanggal';
 import { toast } from 'react-hot-toast';
 import Pagination from '../components/ui/Pagination';
 
@@ -34,12 +35,12 @@ const Laporan = () => {
 
       const tData = {};
       data.transaksi?.forEach(trx => {
-        const dateStr = new Date(trx.waktu).toISOString().split('T')[0];
+        const dateStr = toTanggalLokal(trx.waktu);
         if (!tData[dateStr]) tData[dateStr] = { dateStr, Pendapatan: 0, Pengeluaran: 0 };
         tData[dateStr].Pendapatan += Number(trx.total);
       });
       data.pengeluaran?.forEach(p => {
-        const dateStr = new Date(p.tanggal).toISOString().split('T')[0];
+        const dateStr = toTanggalLokal(p.tanggal);
         if (!tData[dateStr]) tData[dateStr] = { dateStr, Pendapatan: 0, Pengeluaran: 0 };
         tData[dateStr].Pengeluaran += Number(p.jumlah);
       });
@@ -66,13 +67,13 @@ const Laporan = () => {
 
       const hData = {};
       data.transaksi?.forEach(trx => {
-        const dateStr = new Date(trx.waktu).toISOString().split('T')[0];
+        const dateStr = toTanggalLokal(trx.waktu);
         if (!hData[dateStr]) hData[dateStr] = { dateStr, totalTrx: 0, pendapatan: 0, pengeluaran: 0 };
         hData[dateStr].totalTrx += 1;
         hData[dateStr].pendapatan += Number(trx.total);
       });
       data.pengeluaran?.forEach(p => {
-        const dateStr = new Date(p.tanggal).toISOString().split('T')[0];
+        const dateStr = toTanggalLokal(p.tanggal);
         if (!hData[dateStr]) hData[dateStr] = { dateStr, totalTrx: 0, pendapatan: 0, pengeluaran: 0 };
         hData[dateStr].pengeluaran += Number(p.jumlah);
       });
@@ -83,6 +84,49 @@ const Laporan = () => {
       console.error('Failed to fetch laporan', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // ---------- Ekspor Laporan Bulanan (PDF & Excel) ----------
+  const namaFileLaporan = () => `laporan_bulanan_${new Date().toISOString().split('T')[0]}`;
+  const formatTanggalLaporan = (v) => new Date(v).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  const labaHarian = (row) => row.pendapatan - row.pengeluaran;
+  const statusLaba = (row) => (labaHarian(row) >= 0 ? 'Untung' : 'Rugi');
+
+  const handleExportPDF = () => {
+    if (laporanHarian.length === 0) { toast.error('Belum ada data laporan'); return; }
+    const cols = [
+      { header: 'Tanggal', key: 'dateStr', format: formatTanggalLaporan },
+      { header: 'Total Trx', key: 'totalTrx' },
+      { header: 'Pendapatan', key: 'pendapatan', format: (v) => formatRupiah(v) },
+      { header: 'Pengeluaran', key: 'pengeluaran', format: (v) => formatRupiah(v) },
+      { header: 'Laba Bersih', key: 'pendapatan', format: (v, row) => formatRupiah(labaHarian(row)) },
+      { header: 'Status', key: 'pendapatan', format: (v, row) => statusLaba(row) },
+    ];
+    exportToPDF(laporanHarian, cols, namaFileLaporan(), {
+      title: 'Laporan Keuangan Bulanan',
+      subtitle: `Pendapatan: ${formatRupiah(laporan?.summary?.totalPendapatan || 0)} | Pengeluaran: ${formatRupiah(laporan?.summary?.totalPengeluaran || 0)} | Laba: ${formatRupiah(laporan?.summary?.labaBersih || 0)}`,
+    });
+    toast.success('File PDF berhasil di-download');
+  };
+
+  const handleExportExcel = async () => {
+    if (laporanHarian.length === 0) { toast.error('Belum ada data laporan'); return; }
+    // Nilai rupiah dikirim sebagai angka agar bisa dijumlah di Excel
+    const cols = [
+      { header: 'Tanggal', key: 'dateStr', format: formatTanggalLaporan },
+      { header: 'Total Trx', key: 'totalTrx' },
+      { header: 'Pendapatan (Rp)', key: 'pendapatan', format: (v) => Number(v || 0) },
+      { header: 'Pengeluaran (Rp)', key: 'pengeluaran', format: (v) => Number(v || 0) },
+      { header: 'Laba Bersih (Rp)', key: 'pendapatan', format: (v, row) => labaHarian(row) },
+      { header: 'Status', key: 'pendapatan', format: (v, row) => statusLaba(row) },
+    ];
+    try {
+      await exportToExcel(laporanHarian, cols, namaFileLaporan(), 'Laporan Bulanan');
+      toast.success('File Excel berhasil di-download');
+    } catch (error) {
+      console.error('Gagal mengekspor Excel', error);
+      toast.error('Gagal mengekspor Excel');
     }
   };
 
@@ -105,28 +149,22 @@ const Laporan = () => {
           <p className="text-xs text-[#73777f]">Rekapitulasi pendapatan penjualan dan pengeluaran operasional bisnis secara lengkap.</p>
         </div>
 
-        <button
-          onClick={() => {
-            if (laporanHarian.length === 0) { toast.error('Belum ada data laporan'); return; }
-            const cols = [
-              { header: 'Tanggal', key: 'dateStr', format: (v) => new Date(v).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) },
-              { header: 'Total Trx', key: 'totalTrx' },
-              { header: 'Pendapatan', key: 'pendapatan', format: (v) => formatRupiah(v) },
-              { header: 'Pengeluaran', key: 'pengeluaran', format: (v) => formatRupiah(v) },
-              { header: 'Laba Bersih', key: 'pendapatan', format: (v, row) => formatRupiah(row.pendapatan - row.pengeluaran) },
-              { header: 'Status', key: 'pendapatan', format: (v, row) => (row.pendapatan - row.pengeluaran) >= 0 ? 'Untung' : 'Rugi' },
-            ];
-            exportToPDF(laporanHarian, cols, `laporan_bulanan_${new Date().toISOString().split('T')[0]}`, {
-              title: 'Laporan Keuangan Bulanan',
-              subtitle: `Pendapatan: ${formatRupiah(laporan?.summary?.totalPendapatan || 0)} | Pengeluaran: ${formatRupiah(laporan?.summary?.totalPengeluaran || 0)} | Laba: ${formatRupiah(laporan?.summary?.labaBersih || 0)}`,
-            });
-            toast.success('File PDF berhasil di-download');
-          }}
-          className="px-4 py-2 bg-[#006c4e] text-white rounded-lg font-bold text-xs hover:bg-[#00513a] flex items-center gap-1 transition-colors"
-        >
-          <Download size={16} />
-          <span>Download Laporan Bulanan</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportExcel}
+            className="px-4 py-2 border border-[#006c4e] text-[#006c4e] bg-[#006c4e]/5 rounded-lg font-bold text-xs hover:bg-[#006c4e]/10 flex items-center gap-1 transition-colors"
+          >
+            <Download size={16} />
+            <span>Ekspor Excel</span>
+          </button>
+          <button
+            onClick={handleExportPDF}
+            className="px-4 py-2 bg-[#006c4e] text-white rounded-lg font-bold text-xs hover:bg-[#00513a] flex items-center gap-1 transition-colors"
+          >
+            <Download size={16} />
+            <span>Ekspor PDF</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

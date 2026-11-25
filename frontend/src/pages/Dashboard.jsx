@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { formatRupiah } from '../utils/formatRupiah';
+import { toTanggalLokal } from '../utils/formatTanggal';
 import Card from '../components/ui/Card';
 import axiosInstance from '../api/axiosInstance';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts';
@@ -27,11 +28,12 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       setIsLoading(true);
+      const hariIni = toTanggalLokal();
       try {
         const [sumRes, stokRes, trxRes, grafikRes, lapRes] = await Promise.all([
           axiosInstance.get('/dashboard/summary'),
           axiosInstance.get('/dashboard/stok-kritis'),
-          axiosInstance.get('/transaksi?limit=5'),
+          axiosInstance.get('/transaksi', { params: { tanggalMulai: hariIni, tanggalSelesai: hariIni, limit: 100 } }),
           axiosInstance.get('/dashboard/grafik'),
           axiosInstance.get('/laporan/keuangan?periode=harian')
         ]);
@@ -210,7 +212,7 @@ const Dashboard = () => {
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan="7" className="py-4 px-6 text-center text-xs text-neutral-500">Tidak ada transaksi.</td>
+                      <td colSpan="7" className="py-4 px-6 text-center text-xs text-neutral-500">Belum ada transaksi hari ini.</td>
                     </tr>
                   )}
                 </tbody>

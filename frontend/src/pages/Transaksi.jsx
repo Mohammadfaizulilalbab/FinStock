@@ -8,6 +8,7 @@ import Badge from '../components/ui/Badge';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import Pagination from '../components/ui/Pagination';
 import { formatRupiah } from '../utils/formatRupiah';
+import { toTanggalLokal } from '../utils/formatTanggal';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList, Cell } from 'recharts';
 import useSortableData from '../hooks/useSortableData';
@@ -130,7 +131,7 @@ const Transaksi = () => {
     
     let matchesTanggal = true;
     if (filterTanggal && trx.waktu) {
-      const trxDate = new Date(trx.waktu).toISOString().split('T')[0];
+      const trxDate = toTanggalLokal(trx.waktu);
       matchesTanggal = trxDate === filterTanggal;
     }
 
@@ -154,8 +155,8 @@ const Transaksi = () => {
   };
 
   // Dynamic Dashboard Calculations
-  const today = new Date().toISOString().split('T')[0];
-  const todaysTransactions = transaksi.filter(t => t.waktu && t.waktu.startsWith(today) && t.status === 'SELESAI');
+  const today = toTanggalLokal();
+  const todaysTransactions = transaksi.filter(t => t.waktu && toTanggalLokal(t.waktu) === today && t.status === 'SELESAI');
   const totalHariIni = todaysTransactions.length;
   const pendapatanHariIni = todaysTransactions.reduce((sum, t) => sum + parseFloat(t.total || 0), 0);
   const avgPendapatan = totalHariIni > 0 ? (pendapatanHariIni / totalHariIni) : 0;

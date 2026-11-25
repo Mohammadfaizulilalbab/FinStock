@@ -9,6 +9,11 @@ import Modal from '../components/ui/Modal';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import Input from '../components/ui/Input';
 import Pagination from '../components/ui/Pagination';
+import PasswordChecklist from '../components/auth/PasswordChecklist';
+import IzinAksesCheckboxes from '../components/pengguna/IzinAksesCheckboxes';
+import PermintaanAkunPanel from '../components/pengguna/PermintaanAkunPanel';
+import { FITUR_DEFAULT_KARYAWAN } from '../constants/permissions';
+import { isPasswordValid } from '../utils/passwordPolicy';
 
 const Pengguna = () => {
   const [pengguna, setPengguna] = useState([]);
@@ -25,6 +30,7 @@ const Pengguna = () => {
   const [formData, setFormData] = useState({
     nama: '',
     username: '',
+    email: '',
     password: '',
     role: 'KARYAWAN',
     status: 'AKTIF',
@@ -63,6 +69,7 @@ const Pengguna = () => {
       setFormData({
         nama: user.nama,
         username: user.username,
+        email: user.email || '',
         role: user.role,
         status: user.status,
         password: '', // Kosongkan password saat edit
@@ -72,9 +79,11 @@ const Pengguna = () => {
       setFormData({
         nama: '',
         username: '',
+        email: '',
         password: '',
         role: 'KARYAWAN',
         status: 'AKTIF',
+        permissions: FITUR_DEFAULT_KARYAWAN
       });
     }
     setIsModalOpen(true);
@@ -84,8 +93,8 @@ const Pengguna = () => {
     e.preventDefault();
     try {
       if (modalType === 'TAMBAH') {
-        if (!formData.password) {
-          toast.error('Password wajib diisi untuk pengguna baru');
+        if (!isPasswordValid(formData.password)) {
+          toast.error('Password belum memenuhi semua syarat');
           return;
         }
         await axiosInstance.post('/pengguna', formData);
@@ -114,8 +123,8 @@ const Pengguna = () => {
 
   const handleResetPassword = async (e) => {
     e.preventDefault();
-    if (resetPasswordData.newPassword.length < 6) {
-      toast.error('Password minimal 6 karakter');
+    if (!isPasswordValid(resetPasswordData.newPassword)) {
+      toast.error('Password belum memenuhi semua syarat');
       return;
     }
     try {
@@ -153,28 +162,6 @@ const Pengguna = () => {
     </Card>
   );
 
-  const handleTogglePermission = (path) => {
-    setFormData(prev => {
-      const current = prev.permissions || [];
-      if (current.includes(path)) {
-        return { ...prev, permissions: current.filter(p => p !== path) };
-      } else {
-        return { ...prev, permissions: [...current, path] };
-      }
-    });
-  };
-
-  const availableFeatures = [
-    { id: '/', label: 'Dashboard' },
-    { id: '/kasir', label: 'Kasir' },
-    { id: '/transaksi', label: 'Riwayat Transaksi' },
-    { id: '/pengeluaran', label: 'Pengeluaran' },
-    { id: '/menu', label: 'Menu Makanan' },
-    { id: '/persediaan', label: 'Stok Persediaan' },
-    { id: '/laporan', label: 'Laporan Keuangan' },
-    { id: '/vendor', label: 'Kelola Vendor' },
-    { id: '/pengaturan', label: 'Pengaturan' }
-  ];
 
   return (
     <div className="space-y-6">
@@ -220,6 +207,8 @@ const Pengguna = () => {
         />
       </div>
 
+      <PermintaanAkunPanel onAkunDibuat={fetchPengguna} />
+
       <Card title="Daftar Pengguna Sistem" noPadding>
         <div className="p-4 border-b border-[#c3c6cf]/30 flex flex-wrap gap-3 bg-white">
           <input type="text" placeholder="Cari nama atau username..." className="flex-1 min-w-[200px] px-3 py-1.5 border border-[#c3c6cf] rounded-md text-sm outline-none focus:border-[#002444] text-[#191c1e] transition-colors" />
@@ -242,6 +231,7 @@ const Pengguna = () => {
                 <th className="py-3 px-6 font-semibold">ID</th>
                 <th className="py-3 px-6 font-semibold">NAMA LENGKAP</th>
                 <th className="py-3 px-6 font-semibold">USERNAME</th>
+                <th className="py-3 px-6 font-semibold">EMAIL</th>
                 <th className="py-3 px-6 font-semibold">ROLE</th>
                 <th className="py-3 px-6 font-semibold">STATUS</th>
                 <th className="py-3 px-6 font-semibold">LOGIN TERAKHIR</th>
@@ -259,6 +249,10 @@ const Pengguna = () => {
                     {user.nama}
                   </td>
                   <td className="py-4 px-6 text-xs text-neutral-500">{user.username}</td>
+                  <td className="py-4 px-6 text-xs text-neutral-500">
+                    <span className="block whitespace-nowrap">{user.email || '-'}</span>
+                    {user.googleTerhubung && <span className="text-[10px] font-semibold text-[#006c4e]">Google terhubung</span>}
+                  </td>
                   <td className="py-4 px-6 text-xs">
                     <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-bold border-none ${
                       user.role === 'OWNER' 
@@ -322,7 +316,7 @@ const Pengguna = () => {
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan="7" className="py-4 text-center text-xs text-neutral-500">No data available.</td>
+                  <td colSpan="8" className="py-4 text-center text-xs text-neutral-500">No data available.</td>
                 </tr>
               )}
             </tbody>
@@ -356,15 +350,28 @@ const Pengguna = () => {
             onChange={(e) => setFormData({ ...formData, username: e.target.value })}
             required
           />
-          {modalType === 'TAMBAH' && (
-            <Input 
-              label="Password" 
-              type="password"
-              placeholder="Minimal 6 karakter"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              required={modalType === 'TAMBAH'}
+          <div>
+            <Input
+              label="Email (opsional)"
+              type="email"
+              placeholder="nama@gmail.com"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
+            <p className="text-[10px] text-neutral-500 mt-1">Dipakai untuk masuk dengan Google dan fitur lupa password.</p>
+          </div>
+          {modalType === 'TAMBAH' && (
+            <div>
+              <Input
+                label="Password"
+                type="password"
+                placeholder="Buat password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                required
+              />
+              <PasswordChecklist password={formData.password} />
+            </div>
           )}
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">Role Akses</label>
@@ -379,23 +386,10 @@ const Pengguna = () => {
           </div>
 
           {formData.role === 'KARYAWAN' && (
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-2">Izin Akses Fitur</label>
-              <div className="grid grid-cols-2 gap-2 border border-[#c3c6cf]/40 rounded-md p-3 max-h-48 overflow-y-auto bg-neutral-50/50">
-                {availableFeatures.map(feature => (
-                  <label key={feature.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-white p-1.5 rounded transition-colors">
-                    <input 
-                      type="checkbox" 
-                      className="rounded text-[#002444] focus:ring-[#002444] w-4 h-4 cursor-pointer"
-                      checked={(formData.permissions || []).includes(feature.id)}
-                      onChange={() => handleTogglePermission(feature.id)}
-                    />
-                    <span className="text-neutral-700">{feature.label}</span>
-                  </label>
-                ))}
-              </div>
-              <p className="text-[10px] text-neutral-500 mt-1">* Akun dengan role OWNER otomatis mendapatkan akses penuh ke semua fitur.</p>
-            </div>
+            <IzinAksesCheckboxes
+              value={formData.permissions || []}
+              onChange={(permissions) => setFormData({ ...formData, permissions })}
+            />
           )}
 
           <div className="flex gap-3 justify-end pt-4 mt-6 border-t border-neutral-100">
@@ -415,14 +409,17 @@ const Pengguna = () => {
         title={`Reset Password ${selectedUser?.nama}`}
       >
         <form onSubmit={handleResetPassword} className="space-y-4">
-          <Input 
-            label="Password Baru" 
-            type="password"
-            placeholder="Masukkan password baru (min. 6 karakter)"
-            value={resetPasswordData.newPassword}
-            onChange={(e) => setResetPasswordData({ newPassword: e.target.value })}
-            required
-          />
+          <div>
+            <Input
+              label="Password Baru"
+              type="password"
+              placeholder="Masukkan password baru"
+              value={resetPasswordData.newPassword}
+              onChange={(e) => setResetPasswordData({ newPassword: e.target.value })}
+              required
+            />
+            <PasswordChecklist password={resetPasswordData.newPassword} />
+          </div>
           <div className="flex gap-3 justify-end pt-4 mt-6 border-t border-neutral-100">
             <Button type="button" variant="outline" onClick={() => setIsResetModalOpen(false)}>
               Batal
